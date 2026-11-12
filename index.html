@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AETHER_SEC v4.0 // Cyber Visual Novel & CTF</title>
+<style>
+    :root {
+        --bg-color: #030712;
+        --panel-bg: rgba(10, 15, 30, 0.88);
+        --border-neon: #00f0ff;
+        --text-main: #e2e8f0;
+        --accent-green: #00ff66;
+        --accent-pink: #ff0055;
+        --accent-yellow: #facc15;
+        --kael-color: #00f0ff;
+        --nova-color: #ff0055;
+        --vektor-color: #a855f7;
+        --lynx-color: #00ff66;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    html, body { height: 100%; }
+    body {
+        background-color: var(--bg-color);
+        color: var(--text-main);
+        font-family: "Courier New", "Share Tech Mono", monospace;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .scanlines {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        pointer-events: none;
+        background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%), linear-gradient(90deg, rgba(255,0,0,0.03), rgba(0,255,0,0.01), rgba(0,0,255,0.03));
+        background-size: 100% 3px, 3px 100%;
+        z-index: 999;
+    }
+    header {
+        min-height: 50px;
+        background: rgba(3,7,18,0.95);
+        border-bottom: 1px solid var(--border-neon);
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 8px 20px; gap: 12px; flex-wrap: wrap; z-index: 10;
+    }
+    .logo {
+        font-size: 1.5rem; color: var(--border-neon);
+        text-shadow: 0 0 10px var(--border-neon); letter-spacing: 2px; font-weight: bold;
+    }
+    .stats-hud { display: flex; gap: 16px; font-size: 0.9rem; flex-wrap: wrap; }
+    .hud-item span { color: var(--accent-yellow); font-weight: bold; }
+    .header-btns { display: flex; gap: 10px; }
+    .sys-btn {
+        background: transparent; border: 1px solid var(--border-neon); color: var(--border-neon);
+        padding: 5px 12px; font-family: inherit; cursor: pointer; transition: all 0.2s ease; font-size: 0.85rem;
+    }
+    .sys-btn:hover { background: var(--border-neon); color: var(--bg-color); box-shadow: 0 0 10px var(--border-neon); }
+    .sys-btn.danger { border-color: var(--accent-pink); color: var(--accent-pink); }
+    .sys-btn.danger:hover { background: var(--accent-pink); color: #fff; }
+
+    #game-stage {
+        flex: 1; position: relative; display: flex; flex-direction: column; justify-content: flex-end;
+        background: radial-gradient(circle at center, #0f172a 0%, #030712 100%);
+        overflow: hidden; padding: 20px;
+    }
+    .cyber-grid {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background-image: linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px);
+        background-size: 40px 40px; pointer-events: none; z-index: 1;
+    }
+    .sprites-container {
+        position: absolute; bottom: 200px; left: 0; width: 100%;
+        display: flex; justify-content: space-between; padding: 0 80px;
+        z-index: 2; pointer-events: none;
+    }
+    .character-sprite {
+        width: 180px; height: 320px;
+        display: flex; flex-direction: column; align-items: center;
+        opacity: 0.25; filter: grayscale(80%) brightness(0.6);
+        transition: all 0.4s cubic-bezier(0.4,0,0.2,1); transform: translateY(20px);
+    }
+    .character-sprite.active { opacity: 1; filter: grayscale(0%) brightness(1.1); transform: translateY(0); }
+    .character-sprite svg { width: 100%; height: 100%; filter: drop-shadow(0 0 10px rgba(0,0,0,0.8)); }
+
+    .dialog-box {
+        position: relative; z-index: 5; background: var(--panel-bg);
+        border: 2px solid var(--border-neon); border-radius: 4px; padding: 20px;
+        margin-bottom: 10px; box-shadow: 0 0 25px rgba(0,240,255,0.15);
+        backdrop-filter: blur(10px); min-height: 170px;
+        display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .dialog-box.locked { border-color: var(--accent-yellow); box-shadow: 0 0 25px rgba(250,204,21,0.2); }
+    .speaker-tag {
+        position: absolute; top: -16px; left: 25px;
+        background: var(--bg-color); border: 1px solid var(--border-neon);
+        padding: 2px 15px; font-size: 0.9rem; font-weight: bold; letter-spacing: 1px;
+        color: var(--border-neon);
+    }
+    .dialog-text { font-size: 1.1rem; line-height: 1.6; margin-top: 5px; min-height: 50px; }
+    .dialog-text .cursor { display: inline-block; width: 9px; background: var(--accent-green); animation: blink 1s infinite; }
+    .challenge-banner {
+        margin-top: 10px; padding: 8px 12px; font-size: 0.9rem;
+        border: 1px dashed var(--accent-yellow); color: var(--accent-yellow); border-radius: 3px;
+    }
+    .choices-container { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
+    .choice-btn {
+        background: rgba(0,240,255,0.05); border: 1px solid rgba(0,240,255,0.4);
+        color: var(--text-main); padding: 10px 15px; text-align: left;
+        font-family: inherit; font-size: 1rem; cursor: pointer; transition: all 0.2s; border-radius: 2px;
+    }
+    .choice-btn:hover { background: rgba(0,240,255,0.2); border-color: var(--border-neon); color: var(--border-neon); padding-left: 20px; }
+    .next-prompt { text-align: right; font-size: 0.9rem; color: var(--accent-green); animation: blink 1s infinite; cursor: pointer; margin-top: 10px; }
+    .next-prompt.blocked { color: var(--accent-yellow); animation: none; }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .toast {
+        position: fixed; top: 70px; right: 20px; z-index: 200;
+        background: rgba(6,9,19,0.95); border: 1px solid var(--accent-green);
+        color: var(--accent-green); padding: 12px 18px; font-size: 0.95rem;
+        border-radius: 4px; box-shadow: 0 0 20px rgba(0,255,102,0.3);
+        opacity: 0; transform: translateX(30px); transition: all 0.3s ease; pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateX(0); }
+
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(3,7,18,0.9); z-index: 100;
+        display: none; justify-content: center; align-items: center; padding: 40px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-content {
+        width: 100%; max-width: 900px; height: 80vh; background: #060913;
+        border: 2px solid var(--border-neon); box-shadow: 0 0 35px rgba(0,240,255,0.25);
+        display: flex; flex-direction: column; border-radius: 4px; overflow: hidden;
+    }
+    .modal-header {
+        background: rgba(0,240,255,0.1); padding: 12px 20px;
+        display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 1px solid var(--border-neon); gap: 10px;
+    }
+    .modal-title { font-size: 1.3rem; color: var(--border-neon); font-weight: bold; }
+    .close-modal {
+        background: transparent; border: 1px solid var(--accent-pink); color: var(--accent-pink);
+        padding: 2px 10px; cursor: pointer; font-family: inherit;
+    }
+    .close-modal:hover { background: var(--accent-pink); color: #fff; }
+    .terminal-body { flex: 1; padding: 20px; overflow-y: auto; font-size: 1rem; color: var(--accent-green); background: #020408; }
+    .terminal-output div { margin-bottom: 6px; line-height: 1.4; }
+    .terminal-input-line { display: flex; align-items: center; margin-top: 10px; }
+    .terminal-prompt { color: var(--border-neon); margin-right: 8px; white-space: nowrap; }
+    .terminal-input {
+        flex: 1; background: transparent; border: none; color: var(--text-main);
+        font-family: inherit; font-size: 1rem; outline: none;
+    }
+    .dossier-body { flex: 1; padding: 25px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-content: start; }
+    .dossier-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(0,240,255,0.2); padding: 15px; border-radius: 4px; }
+    .dossier-card h3 { color: var(--border-neon); margin-bottom: 10px; font-size: 1.15rem; }
+    .dossier-card p { font-size: 0.95rem; color: #94a3b8; line-height: 1.5; }
+    .dossier-card.solved { border-color: var(--accent-green); }
+    .dossier-card.solved h3::after { content: " ✔"; color: var(--accent-green); }
+
+    @media (max-width: 768px) {
+        .sprites-container { padding: 0 10px; }
+        .character-sprite { width: 100px; height: 180px; }
+        .dossier-body { grid-template-columns: 1fr; }
+        .logo { font-size: 1.1rem; }
+        .modal-overlay { padding: 10px; }
+        .modal-content { height: 90vh; }
+    }
+</style>
+</head>
+<body>
+
+<div class="scanlines"></div>
+
+<header>
+    <div class="logo">AETHER_SEC // v4.0</div>
+    <div class="stats-hud">
+        <div class="hud-item">ACTO: <span id="hud-act">1 / 7</span></div>
+        <div class="hud-item">FLAGS: <span id="hud-flags">0 / 6</span></div>
+        <div class="hud-item">EXP: <span id="hud-exp">0</span></div>
+        <div class="hud-item">RANGO: <span id="hud-rank">Script Kiddie</span></div>
+    </div>
+    <div class="header-btns">
+        <button class="sys-btn" onclick="openTerminal()">💻 TERMINAL</button>
+        <button class="sys-btn" onclick="openDossier()">📁 DOSSIER</button>
+        <button class="sys-btn" onclick="toggleSound()" id="sound-btn">🔊 SONIDO</button>
+        <button class="sys-btn danger" onclick="resetGame()">⟲ RESET</button>
+    </div>
+</header>
+
+<div id="game-stage">
+    <div class="cyber-grid"></div>
+
+    <div class="sprites-container">
+        <div id="sprite-kael" class="character-sprite">
+            <svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+                <path d="M70,30 L130,30 L140,80 L60,80 Z" fill="#00f0ff" opacity="0.8"/>
+                <rect x="50" y="80" width="100" height="150" fill="#0b1329" stroke="#00f0ff" stroke-width="2"/>
+                <path d="M40,100 L50,180 L80,160 Z" fill="#0b1329" stroke="#00f0ff"/>
+                <path d="M160,100 L150,180 L120,160 Z" fill="#0b1329" stroke="#00f0ff"/>
+                <rect x="75" y="230" width="20" height="150" fill="#0b1329" stroke="#00f0ff" stroke-width="2"/>
+                <rect x="105" y="230" width="20" height="150" fill="#0b1329" stroke="#00f0ff" stroke-width="2"/>
+                <circle cx="100" cy="55" r="18" fill="#1e293b" stroke="#00f0ff" stroke-width="2"/>
+            </svg>
+        </div>
+        <div id="sprite-nova" class="character-sprite">
+            <svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+                <path d="M60,40 L140,40 L130,80 L70,80 Z" fill="#ff0055" opacity="0.8"/>
+                <rect x="55" y="80" width="90" height="140" fill="#2b0a1a" stroke="#ff0055" stroke-width="2"/>
+                <path d="M55,90 L20,170 L50,180 Z" fill="#2b0a1a" stroke="#ff0055"/>
+                <path d="M145,90 L180,170 L150,180 Z" fill="#2b0a1a" stroke="#ff0055"/>
+                <rect x="75" y="220" width="18" height="160" fill="#2b0a1a" stroke="#ff0055" stroke-width="2"/>
+                <rect x="107" y="220" width="18" height="160" fill="#2b0a1a" stroke="#ff0055" stroke-width="2"/>
+                <circle cx="100" cy="55" r="18" fill="#2b0a1a" stroke="#ff0055" stroke-width="2"/>
+            </svg>
+        </div>
+        <div id="sprite-vektor" class="character-sprite">
+            <svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+                <path d="M50,20 L150,20 L160,80 L40,80 Z" fill="#a855f7" opacity="0.8"/>
+                <rect x="45" y="80" width="110" height="160" fill="#1e1b4b" stroke="#a855f7" stroke-width="2"/>
+                <path d="M45,90 L10,190 L40,190 Z" fill="#1e1b4b" stroke="#a855f7"/>
+                <path d="M155,90 L190,190 L160,190 Z" fill="#1e1b4b" stroke="#a855f7"/>
+                <rect x="70" y="240" width="22" height="150" fill="#1e1b4b" stroke="#a855f7" stroke-width="2"/>
+                <rect x="108" y="240" width="22" height="150" fill="#1e1b4b" stroke="#a855f7" stroke-width="2"/>
+                <circle cx="100" cy="50" r="20" fill="#1e1b4b" stroke="#a855f7" stroke-width="2"/>
+            </svg>
+        </div>
+        <div id="sprite-lynx" class="character-sprite">
+            <svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">
+                <path d="M65,30 L135,30 L125,75 L75,75 Z" fill="#00ff66" opacity="0.8"/>
+                <rect x="50" y="75" width="100" height="150" fill="#022c22" stroke="#00ff66" stroke-width="2"/>
+                <rect x="75" y="225" width="20" height="165" fill="#022c22" stroke="#00ff66" stroke-width="2"/>
+                <rect x="105" y="225" width="20" height="165" fill="#022c22" stroke="#00ff66" stroke-width="2"/>
+                <circle cx="100" cy="50" r="18" fill="#022c22" stroke="#00ff66" stroke-width="2"/>
+            </svg>
+        </div>
+    </div>
+
+    <div class="dialog-box" id="dialog-box">
+        <div id="speaker-tag" class="speaker-tag">SISTEMA</div>
+        <div id="dialog-text" class="dialog-text"></div>
+        <div id="challenge-banner" class="challenge-banner" style="display:none"></div>
+        <div id="choices-area" class="choices-container"></div>
+        <div id="next-prompt" class="next-prompt" onclick="advanceDialogue()">[ PULSA PARA CONTINUAR ▶ ]</div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Terminal Modal -->
+<div id="terminal-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="modal-title">AETHER_SEC // SEC-CLI v4.1</span>
+            <button class="close-modal" onclick="closeModal('terminal-modal')">[ CERRAR ]</button>
+        </div>
+        <div class="terminal-body" id="terminal-body">
+            <div class="terminal-output" id="terminal-output"></div>
+            <div class="terminal-input-line">
+                <span class="terminal-prompt">root@aethersec:~#</span>
+                <input type="text" id="terminal-input" class="terminal-input" onkeydown="handleTerminalCommand(event)">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dossier Modal -->
+<div id="dossier-modal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="modal-title">ARCHIVOS DE INTELIGENCIA // LORE & DOSSIER</span>
+            <button class="close-modal" onclick="closeModal('dossier-modal')">[ CERRAR ]</button>
+        </div>
+        <div class="dossier-body" id="dossier-body"></div>
+    </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============ AUDIO ============ */
+let audioCtx = null, soundOn = true;
+function playTone(freq, type, duration) {
+    if (!soundOn) return;
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+        osc.type = type; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
+    } catch (e) { /* audio no disponible */ }
+}
+function toggleSound() {
+    soundOn = !soundOn;
+    document.getElementById('sound-btn').textContent = soundOn ? '🔊 SONIDO' : '🔇 MUDO';
+}
+
+/* ============ CHALLENGES (flags) ============ */
+// Cada flag corresponde a un acto. La historia NO avanza de acto sin entregarla.
+const CHALLENGES = {
+    1: { flag: "FLAG{aether_init_01}", tool: "decode",  title: "RETO 1 — Trama Base64",   hint: "Abre la TERMINAL y decodifica la trama interceptada con: decode" },
+    2: { flag: "FLAG{hash_cracked_99}", tool: "crack",  title: "RETO 2 — Hash MD5",      hint: "Crackea el hash del administrador en la terminal con: crack" },
+    3: { flag: "FLAG{port_scan_8080}", tool: "nmap",    title: "RETO 3 — Escaneo Nmap",  hint: "Escanea los puertos del gateway de Lynx con: nmap" },
+    4: { flag: "FLAG{sql_bypass_root}", tool: "sqlmap", title: "RETO 4 — Inyección SQL", hint: "Explota el login vulnerable con: sqlmap" },
+    5: { flag: "FLAG{ddos_mitigated_77}", tool: "mitigate", title: "RETO 5 — Mitigar DDoS", hint: "Mitiga el ataque DoS con: mitigate" },
+    6: { flag: "FLAG{memdump_decoded_42}", tool: "memdump", title: "RETO 6 — Volcado de memoria", hint: "Analiza el volcado de memoria con: memdump" }
+};
+
+/* ============ STORY ============ */
+// nextAct marca el final de un acto: si el reto del acto no está resuelto, se bloquea el avance.
+const storyScript = [
+    // --- ACTO 1 ---
+    { speaker: "KAEL", color: "var(--kael-color)",
+      text: "Despierta, operador. Los servidores principales de AetherSec están sufriendo una caída anómala en el sector 7. Vektor ha dejado rastros en el código fuente.",
+      choices: null },
+    { speaker: "NOVA", color: "var(--nova-color)",
+      text: "He interceptado una trama de red codificada en Base64 dentro del index principal corporativo. Necesitamos decodificarla urgentemente para hallar la primera clave.",
+      choices: [
+        { text: "Abrir la Terminal CLI y buscar la trama", next: 2 },
+        { text: "Preguntar a Kael por pistas de esteganografía", next: 1 }
+      ] },
+    { speaker: "KAEL", color: "var(--kael-color)",
+      text: "Usa el comando 'decode' en la terminal o analiza las cabeceras. La flag tiene formato FLAG{...}.",
+      choices: null },
+    { speaker: "NOVA", color: "var(--nova-color)",
+      text: "Perfecto, la trama está aislada. Entrégala en la terminal con 'submit FLAG{...}' para cerrar el Acto 1.",
+      choices: null, nextAct: 1 },
+    // --- ACTO 2 ---
+    { speaker: "VEKTOR", color: "var(--vektor-color)",
+      text: "Vaya, vaya... AetherSec sigue enviando novatos a limpiar mis rutas. El segundo nodo está protegido por hashes cifrados con MD5 y SHA-256." },
+    { speaker: "NOVA", color: "var(--nova-color)",
+      text: "No le escuches. El hash del administrador es '5d41402abc4b2a76b9719d911017c592'. Usa fuerza bruta simulada o cracking en la terminal con 'crack'.",
+      choices: null, nextAct: 2 },
+    // --- ACTO 3 ---
+    { speaker: "LYNX", color: "var(--lynx-color)",
+      text: "¡Hola! Soy Lynx, el SysAdmin. Mi cortafuegos interno ha bloqueado el puerto 8080. Vektor ha abierto una puerta trasera mediante escaneo de puertos." },
+    { speaker: "KAEL", color: "var(--kael-color)",
+      text: "Ejecuta un escaneo de puertos en la terminal con 'nmap' y explota la vulnerabilidad detectada para recuperar el control.",
+      choices: null, nextAct: 3 },
+    // --- ACTO 4 ---
+    { speaker: "NOVA", color: "var(--nova-color)",
+      text: "Estamos cerca del núcleo de bases de datos. El formulario de autenticación de empleados tiene una brecha de inyección SQL clásica." },
+    { speaker: "VEKTOR", color: "var(--vektor-color)",
+      text: "Buena suerte cruzando el bypass de credenciales corporativas. Si caes aquí, borraré todos los registros del servidor.",
+      choices: null, nextAct: 4 },
+    // --- ACTO 5 ---
+    { speaker: "LYNX", color: "var(--lynx-color)",
+      text: "¡Mis servidores auxiliares están colapsando! Hay un ataque de denegación de servicio simulado en marcha. Necesito que mitiges el tráfico antes de que caiga todo." },
+    { speaker: "KAEL", color: "var(--kael-color)",
+      text: "Filtra las IPs maliciosas y activa el rate-limiting. El comando 'mitigate' en la terminal hará el trabajo pesado.",
+      choices: null, nextAct: 5 },
+    // --- ACTO 6 ---
+    { speaker: "KAEL", color: "var(--kael-color)",
+      text: "Es hora del enfrentamiento definitivo. Vektor ha volcado la memoria principal del clúster corporativo. Ahí dentro escondió su identidad real." },
+    { speaker: "VEKTOR", color: "var(--vektor-color)",
+      text: "¿Crees que puedes leer mis recuerdos, operador? El volcado está cifrado en capas. Nadie ha salido vivo de mi mente." },
+    { speaker: "NOVA", color: "var(--nova-color)",
+      text: "Analiza el volcado con 'memdump' en la terminal. Lo que encuentres ahí decidirá el final de esta guerra.",
+      choices: null, nextAct: 6 },
+    // --- ACTO 7 (FINAL) ---
+    { speaker: "NOVA", color: "var(--nova-color)",
+      text: "¡Has neutralizado la amenaza y asegurado el núcleo de AetherSec Corp! Has alcanzado el rango máximo de Director de Ciberseguridad." },
+    { speaker: "KAEL", color: "var(--kael-color)",
+      text: "Buen trabajo, operador. Vektor no volverá a tocar nuestros sistemas... al menos no pronto. El sector 7 vuelve a estar en línea." },
+    { speaker: "SISTEMA", color: "var(--accent-green)",
+      text: "★ MISIÓN COMPLETADA ★ Todos los retos resueltos. Rango final: CYBERSEC DIRECTOR. Ejecuta 'reset' en la terminal para volver a empezar." }
+];
+
+/* ============ GAME STATE (con persistencia) ============ */
+const DEFAULT_STATE = { nodeIndex: 0, act: 1, exp: 0, rank: "Script Kiddie", flagsFound: [], sound: true };
+let gameState = loadState();
+
+function loadState() {
+    try {
+        const s = JSON.parse(localStorage.getItem('aethersec_save'));
+        if (s && Array.isArray(s.flagsFound) && typeof s.nodeIndex === 'number') return { ...DEFAULT_STATE, ...s };
+    } catch (e) {}
+    return { ...DEFAULT_STATE };
+}
+function saveState() {
+    try { localStorage.setItem('aethersec_save', JSON.stringify(gameState)); } catch (e) {}
+}
+function resetGame() {
+    gameState = { ...DEFAULT_STATE, flagsFound: [] };
+    saveState(); updateHUD(); renderDialogue();
+    showToast("Progreso reiniciado. Nueva partida.");
+}
+
+const RANKS = [
+    { exp: 0, name: "Script Kiddie" },
+    { exp: 500, name: "Pentester Junior" },
+    { exp: 1000, name: "Senior Pentester" },
+    { exp: 1500, name: "Red Team Lead" },
+    { exp: 1750, name: "Cybersec Director" }
+];
+function updateRank() {
+    let r = RANKS[0].name;
+    RANKS.forEach(k => { if (gameState.exp >= k.exp) r = k.name; });
+    gameState.rank = r;
+}
+
+function updateHUD() {
+    updateRank();
+    document.getElementById('hud-act').innerText = `${gameState.act} / 7`;
+    document.getElementById('hud-flags').innerText = `${gameState.flagsFound.length} / 6`;
+    document.getElementById('hud-exp').innerText = gameState.exp;
+    document.getElementById('hud-rank').innerText = gameState.rank;
+}
+
+/* ============ TYPEWRITER ============ */
+let typeTimer = null;
+function typeText(node, text, done) {
+    clearInterval(typeTimer);
+    node.innerHTML = '';
+    let i = 0;
+    const cur = document.createElement('span');
+    cur.className = 'cursor'; cur.innerHTML = '&nbsp;';
+    node.appendChild(cur);
+    typeTimer = setInterval(() => {
+        if (i < text.length) {
+            cur.insertAdjacentText('beforebegin', text[i]);
+            i++;
+            if (i % 3 === 0) playTone(120, 'sine', 0.02);
+        } else {
+            clearInterval(typeTimer);
+            cur.remove();
+            if (done) done();
+        }
+    }, 18);
+}
+
+/* ============ DIALOGUE RENDER ============ */
+function currentActSolved() {
+    const ch = CHALLENGES[gameState.act];
+    return !ch || gameState.flagsFound.includes(ch.flag);
+}
+
+function renderDialogue() {
+    const current = storyScript[gameState.nodeIndex];
+    if (!current) return;
+    saveState();
+
+    const tag = document.getElementById('speaker-tag');
+    tag.innerText = current.speaker;
+    tag.style.color = current.color;
+    tag.style.borderColor = current.color;
+
+    document.querySelectorAll('.character-sprite').forEach(el => el.classList.remove('active'));
+    const sp = document.getElementById(`sprite-${current.speaker.toLowerCase()}`);
+    if (sp) sp.classList.add('active');
+
+    const banner = document.getElementById('challenge-banner');
+    const nextPrompt = document.getElementById('next-prompt');
+    const box = document.getElementById('dialog-box');
+    const choicesArea = document.getElementById('choices-area');
+    choicesArea.innerHTML = '';
+
+    const isLastNode = gameState.nodeIndex >= storyScript.length - 1;
+    const actGate = !!current.nextAct;
+
+    if (current.choices) {
+        nextPrompt.style.display = 'none';
+        banner.style.display = 'none';
+        box.classList.remove('locked');
+        current.choices.forEach(ch => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.innerText = `> ${ch.text}`;
+            btn.onclick = () => { playTone(500, 'sine', 0.1); gameState.nodeIndex = ch.next; renderDialogue(); };
+            choicesArea.appendChild(btn);
+        });
+    } else if (isLastNode) {
+        banner.style.display = 'none';
+        box.classList.remove('locked');
+        nextPrompt.style.display = 'none';
+    } else if (actGate && !currentActSolved()) {
+        // NODO DE BLOQUEO: no se avanza sin la flag del acto
+        const ch = CHALLENGES[gameState.act];
+        banner.innerHTML = `🔒 ${ch.title} — <b>${ch.hint}</b> · Entrega la flag con <b>submit ${ch.flag.split('{')[0]}{...}</b>`;
+        banner.style.display = 'block';
+        box.classList.add('locked');
+        nextPrompt.style.display = 'block';
+        nextPrompt.classList.add('blocked');
+        nextPrompt.innerText = '[ ⚠ RETO PENDIENTE: resuélvelo en la TERMINAL ]';
+        nextPrompt.onclick = () => { openTerminal(); showToast(ch.hint); };
+    } else {
+        const ch = CHALLENGES[gameState.act];
+        if (actGate && ch) {
+            banner.innerHTML = `✔ ${ch.title} superado.`;
+            banner.style.display = 'block';
+            banner.style.borderColor = 'var(--accent-green)';
+            banner.style.color = 'var(--accent-green)';
+        } else {
+            banner.style.display = 'none';
+        }
+        box.classList.remove('locked');
+        nextPrompt.classList.display = '';
+        nextPrompt.style.display = 'block';
+        nextPrompt.classList.remove('blocked');
+        nextPrompt.innerText = '[ PULSA PARA CONTINUAR ▶ ]';
+        nextPrompt.onclick = advanceDialogue;
+    }
+
+    typeText(document.getElementById('dialog-text'), current.text);
+    playTone(300, 'triangle', 0.08);
+}
+
+// actOfNode: a qué acto pertenece cada nodo (nextAct N cierra el acto N; el siguiente nodo abre N+1)
+const ACT_OF_NODE = (() => {
+    const acts = [];
+    let act = 1;
+    storyScript.forEach((n, i) => { acts[i] = act; if (n.nextAct) act = Math.min(n.nextAct + 1, 7); });
+    return acts;
+})();
+function actOfNode(i) { return ACT_OF_NODE[i] || 1; }
+
+function advanceDialogue() {
+    if (gameState.nodeIndex < storyScript.length - 1) {
+        const cur = storyScript[gameState.nodeIndex];
+        if (cur.nextAct && !currentActSolved()) { // doble seguro
+            openTerminal();
+            return;
+        }
+        gameState.nodeIndex++;
+        gameState.act = actOfNode(gameState.nodeIndex);
+        updateHUD();
+        renderDialogue();
+    }
+}
+
+/* ============ TOAST ============ */
+let toastTimer = null;
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.innerText = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+/* ============ MODALS ============ */
+function openModal(id) { document.getElementById(id).classList.add('active'); playTone(600, 'square', 0.1); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+function openTerminal() { openModal('terminal-modal'); document.getElementById('terminal-input').focus(); }
+function openDossier() { renderDossier(); openModal('dossier-modal'); }
+
+document.querySelectorAll('.modal-overlay').forEach(ov => {
+    ov.addEventListener('click', e => { if (e.target === ov) ov.classList.remove('active'); });
+});
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+    // Avance con Espacio / Enter fuera de modales e input
+    const inInput = document.activeElement && document.activeElement.tagName === 'INPUT';
+    const modalOpen = document.querySelector('.modal-overlay.active');
+    if ((e.key === ' ' || e.key === 'Enter') && !inInput && !modalOpen) {
+        e.preventDefault();
+        advanceDialogue();
+    }
+});
+
+function renderDossier() {
+    const chars = [
+        { id: 'kael', name: 'Kael // Arquitecto Táctico', desc: 'Antiguo operador de élite de operaciones negras. Cínico, calculador y experto en contramedidas de red y esteganografía profunda.' },
+        { id: 'nova', name: 'Nova // Inteligencia Ofensiva', desc: 'Especialista en análisis forense y criptografía. Su lealtad a AetherSec es inquebrantable, aunque sospecha de filtraciones internas.' },
+        { id: 'vektor', name: 'Vektor // El Adversario', desc: 'Ex-ingeniero jefe de AetherSec. Desató la brecha lógica inicial para exponer los protocolos de control corporativo al exterior.' },
+        { id: 'lynx', name: 'Lynx // SysAdmin Paranoico', desc: 'Guardián de las pasarelas corporativas. Atrapado en el fuego cruzado, su servidor proxy contiene la llave del núcleo principal.' }
+    ];
+    const body = document.getElementById('dossier-body');
+    body.innerHTML = '';
+    chars.forEach(c => {
+        const card = document.createElement('div');
+        card.className = 'dossier-card' + (c.id === 'vektor' && gameState.flagsFound.includes(CHALLENGES[6].flag) ? ' solved' : '');
+        card.innerHTML = `<h3>${c.name}</h3><p>${c.desc}</p>`;
+        body.appendChild(card);
+    });
+    // resumen de retos
+    const sum = document.createElement('div');
+    sum.className = 'dossier-card';
+    sum.innerHTML = '<h3>Registro de retos</h3><p>' +
+        Object.entries(CHALLENGES).map(([act, ch]) => {
+            const ok = gameState.flagsFound.includes(ch.flag);
+            return `${ok ? '✔' : '✖'} ${ch.title}`;
+        }).join('<br>') + '</p>';
+    body.appendChild(sum);
+}
+
+/* ============ TERMINAL ============ */
+const BASE64_TRAMA = "RkxBR3thZXRoZXJfaW5pdF8wMX0="; // FLAG{aether_init_01}
+const ADMIN_HASH = '5d41402abc4b2a76b9719d911017c592'; // md5("hello")
+const HASH_DICT = ["admin", "root", "password", "hello", "aether", "vektor", "12345", "letmein"];
+const cmdHistory = [];
+let histPos = -1;
+
+function handleTerminalCommand(e) {
+    const input = document.getElementById('terminal-input');
+    if (e.key === 'ArrowUp') {
+        if (cmdHistory.length) { histPos = Math.max(0, histPos - 1); input.value = cmdHistory[histPos] || ''; }
+        e.preventDefault(); return;
+    }
+    if (e.key === 'ArrowDown') {
+        if (cmdHistory.length) { histPos = Math.min(cmdHistory.length, histPos + 1); input.value = cmdHistory[histPos] || ''; }
+        e.preventDefault(); return;
+    }
+    if (e.key !== 'Enter') return;
+    const cmd = input.value.trim();
+    input.value = '';
+    if (cmd) { cmdHistory.push(cmd); histPos = cmdHistory.length; }
+    const output = document.getElementById('terminal-output');
+    out(`<span style="color:var(--border-neon)">root@aethersec:~#</span> ${escapeHtml(cmd)}`, output);
+    processCommand(cmd, output);
+    const tb = document.getElementById('terminal-body');
+    tb.scrollTop = tb.scrollHeight;
+}
+
+function out(html, output) { output.insertAdjacentHTML('beforeend', `<div>${html}</div>`); }
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function grantFlag(flag, output) {
+    const ch = Object.values(CHALLENGES).find(c => c.flag === flag);
+    if (gameState.flagsFound.includes(flag)) {
+        out(`<span style="color:var(--accent-yellow)">[!] Ya habías entregado esta flag anteriormente.</span>`, output);
+        return;
+    }
+    gameState.flagsFound.push(flag);
+    gameState.exp += 250;
+    updateHUD(); saveState();
+    out(`<span style="color:var(--accent-green)">[✔] ¡FLAG VÁLIDA! +250 EXP ganados.</span>`, output);
+    playTone(880, 'sine', 0.15); setTimeout(() => playTone(1320, 'sine', 0.2), 150);
+    showToast(`✔ ${ch ? ch.title : 'Reto'} superado · +250 EXP`);
+    if (gameState.flagsFound.length === Object.keys(CHALLENGES).length) {
+        out(`<span style="color:var(--accent-green)">[★] TODAS LAS FLAGS CAPTURADAS. Rango final: ${gameState.rank}.</span>`, output);
+    }
+    renderDialogue();
+}
+
+function processCommand(cmd, output) {
+    const parts = cmd.split(/\s+/);
+    const command = parts[0].toLowerCase();
+    const arg = parts.slice(1).join(' ');
+
+    switch (command) {
+        case 'help':
+            out(`Comandos disponibles:
+  - help            : Muestra esta ayuda
+  - clear           : Limpia la terminal
+  - whoami          : Identidad actual del operador
+  - ls              : Lista artefactos interceptados del acto actual
+  - decode          : Decodifica la trama Base64 del Acto 1
+  - crack           : Fuerza bruta simulada sobre el hash MD5 del Acto 2
+  - nmap            : Escaneo de puertos del gateway (Acto 3)
+  - sqlmap          : Bypass de inyección SQL en el login (Acto 4)
+  - mitigate        : Mitiga el ataque DDoS (Acto 5)
+  - memdump         : Analiza el volcado de memoria de Vektor (Acto 6)
+  - flags           : Muestra las flags capturadas
+  - submit [FLAG]   : Envía una flag (formato FLAG{...})
+  - reset           : Reinicia toda la partida`, output);
+            break;
+        case 'clear':
+            output.innerHTML = '';
+            break;
+        case 'whoami':
+            out(`operador@aethersec — rango: <b>${gameState.rank}</b> · exp: ${gameState.exp} · acto ${gameState.act}/7`, output);
+            break;
+        case 'ls':
+            out(`artefactos del acto ${gameState.act}:
+  trama_base64.bin   (usa: decode)
+  admin.hash         (usa: crack)
+  gateway.target     (usa: nmap)
+  login.form         (usa: sqlmap)
+  traffic.log        (usa: mitigate)
+  core.memdump       (usa: memdump)`, output);
+            break;
+        case 'decode': {
+            // decodificación real con atob
+            let decoded;
+            try { decoded = atob(BASE64_TRAMA); } catch (e) { decoded = null; }
+            out(`[*] Decodificando trama interceptada (Base64 → ASCII)...`, output);
+            out(`[+] Trama decodificada: <b>${escapeHtml(decoded || 'ERROR')}</b>`, output);
+            out(`<span style="color:var(--accent-yellow)">[→] Entrégala con: submit ${escapeHtml(decoded || '')}</span>`, output);
+            break;
+        }
+        case 'crack': {
+            // fuerza bruta simulada contra el diccionario (el hash es md5("hello"))
+            out(`[*] Objetivo: ${ADMIN_HASH} (MD5)`, output);
+            out(`[*] Cargando diccionario (${HASH_DICT.length} candidatos)...`, output);
+            const found = HASH_DICT.find(w => '5d41402abc4b2a76b9719d911017c592' === '5d41402abc4b2a76b9719d911017c592' && w === 'hello');
+            HASH_DICT.slice(0, 4).forEach(w => out(`    probando '${w}'... ✖`, output));
+            out(`    probando '${found}'... ✔ colisión encontrada`, output);
+            out(`[+] Hash roto. La sesión del admin expone: <b>FLAG{hash_cracked_99}</b>`, output);
+            out(`<span style="color:var(--accent-yellow)">[→] Entrégala con: submit FLAG{hash_cracked_99}</span>`, output);
+            break;
+        }
+        case 'nmap':
+            out(`[*] Escaneando gateway.lynx.corp (10.0.7.1) ...`, output);
+            out(`    22/tcp   open   ssh`, output);
+            out(`    443/tcp  open   https`, output);
+            out(`    <b>8080/tcp open   http-proxy  ← puerta trasera de Vektor</b>`, output);
+            out(`[+] Vulnerabilidad detectada en 8080. Artefacto expuesto: <b>FLAG{port_scan_8080}</b>`, output);
+            out(`<span style="color:var(--accent-yellow)">[→] Entrégala con: submit FLAG{port_scan_8080}</span>`, output);
+            break;
+        case 'sqlmap':
+            out(`[*] Objetivo: https://aethersec.corp/employee_login`, output);
+            out(`[*] Payload: ' OR 1=1 -- -`, output);
+            out(`[+] Bypass exitoso. Sesión iniciada como SUPERUSUARIO.`, output);
+            out(`[+] Credenciales del núcleo expuestas: <b>FLAG{sql_bypass_root}</b>`, output);
+            out(`<span style="color:var(--accent-yellow)">[→] Entrégala con: submit FLAG{sql_bypass_root}</span>`, output);
+            break;
+        case 'mitigate':
+            out(`[*] Analizando traffic.log: 12.400 req/s desde 340 IPs botnet...`, output);
+            out(`[*] Activando rate-limiting + filtrado geográfico + challenge TLS...`, output);
+            out(`[+] Ataque DDoS mitigado. Tráfico legítimo restaurado (99.7% uptime).`, output);
+            out(`[+] Log forense recuperado del balanceador: <b>FLAG{ddos_mitigated_77}</b>`, output);
+            out(`<span style="color:var(--accent-yellow)">[→] Entrégala con: submit FLAG{ddos_mitigated_77}</span>`, output);
+            break;
+        case 'memdump':
+            out(`[*] Analizando core.memdump (4.2 GB) en busca de artefactos de Vektor...`, output);
+            out(`    0x00AF3C10  strings → "identity_layer.bak" ✔`, output);
+            out(`    0x1F0B2200  strings → "control_protocol.txt" ✔`, output);
+            out(`    0x3C41D8E8  strings → "FLAG{memdump_decoded_42}" ✔`, output);
+            out(`[+] Identidad de Vektor descifrada. Evidencia para el juicio corporativo asegurada.`, output);
+            out(`<span style="color:var(--accent-yellow)">[→] Entrégala con: submit FLAG{memdump_decoded_42}</span>`, output);
+            break;
+        case 'flags':
+            if (!gameState.flagsFound.length) out(`Aún no has capturado ninguna flag. Progreso: ${gameState.flagsFound.length}/6`, output);
+            else out(`Flags capturadas (${gameState.flagsFound.length}/6):<br>` + gameState.flagsFound.map(f => `  ✔ ${escapeHtml(f)}`).join('<br>'), output);
+            break;
+        case 'submit':
+            if (!arg) {
+                out(`<span style="color:var(--accent-pink)">[-] Uso: submit FLAG{tu_codigo}</span>`, output);
+            } else {
+                const valid = Object.values(CHALLENGES).some(c => c.flag === arg);
+                if (valid) grantFlag(arg, output);
+                else out(`<span style="color:var(--accent-pink)">[✘] Flag incorrecta o no válida. (Formato esperado: FLAG{...})</span>`, output);
+            }
+            break;
+        case 'reset':
+            resetGame();
+            out(`<span style="color:var(--accent-yellow)">[⟲] Partida reiniciada.</span>`, output);
+            break;
+        default:
+            out(`<span style="color:var(--accent-pink)">Comando no reconocido: '${escapeHtml(command)}'. Escribe 'help'.</span>`, output);
+    }
+}
+
+/* ============ INIT ============ */
+const initialOutput = document.getElementById('terminal-output');
+out(`AetherSec Enterprise Security Terminal [Versión 4.1.0]`, initialOutput);
+out(`Escribe 'help' para listar comandos o 'ls' para ver los artefactos del acto actual.`, initialOutput);
+out(`Las flags se entregan con: submit FLAG{...}`, initialOutput);
+out(`<br>`, initialOutput);
+
+soundOn = gameState.sound !== false;
+document.getElementById('sound-btn').textContent = soundOn ? '🔊 SONIDO' : '🔇 MUDO';
+updateHUD();
+renderDialogue();
+</script>
+</body>
+</html>
